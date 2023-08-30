@@ -5,7 +5,7 @@ class Ground {
         this.game = game
         this.color = color
         this.context = context
-        this.harry = this.getHarry(1000, 85, 130, 1)
+        this.harry = this.getHarry(1000, 185, 130, 1)
         this.img =  this.generateGround(this.color, this.context.createImageData(this.game.width, this.game.height));
         this.hasCollapse = false
     }
@@ -82,9 +82,12 @@ class Ground {
                 average += this.harry[sample]
                 count ++
             }
-            average /= count
-            this.harry[point] = this.harry[point]*(1-weight) + average * weight
+            if (count > 0) {
+                average /= count
+                this.harry[point] = this.harry[point]*(1-weight) + average * weight
+            }
         }
+        console.log(this.harry)
         
     }
 
