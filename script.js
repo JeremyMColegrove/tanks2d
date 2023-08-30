@@ -180,10 +180,9 @@ class UI {
             this.markedForDeletion = false
             this.vx = this.power*Math.cos(this.angle * Math.PI/180)
             this.vy = -this.power*Math.sin(this.angle * Math.PI/180)
-            this.speed = 0.5
+            this.speed = 0.05
 
             // valdation checks
-            if (power < 0 || power > 20) console.error(`Power should be between 1-15, got ${this.power}`)
             if (this.game == null) console.error(`Game is undefined`)
             if (angle < 0 || angle > 180) console.error(`Angle should be between 0-180, got ${this.angle}`)
         }
@@ -194,8 +193,8 @@ class UI {
             // the missle moving physics here
             this.x += this.vx*this.speed
             this.y += this.vy*this.speed
-            this.vy += 0.2*this.speed
-            this.vx += this.game.wind*0.002
+            this.vy += 9.8*this.speed
+            this.vx += this.game.wind*0.005
 
             if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height)
                 this.markedForDeletion = true
@@ -232,6 +231,8 @@ class UI {
         constructor(game, x, y, power, angle) {
             super(game, x, y, power, angle)
             this.radius = 20
+            this.fragmentpower = 50
+            this.fragmentminpower = 30
         }
 
         update () {
@@ -239,10 +240,10 @@ class UI {
             if (this.y > this.game.height - this.game.ground.harry[Math.round(this.x)]) {
                 this.game.ground.blow(this.x, this.y, this.radius)
                 // create 4 more bullets going in random directions
-                this.game.bullets.push(new SmallMissle(this.game, this.x-1, this.y-11, 7*Math.random()+1, Math.random()*90 + 45))
-                this.game.bullets.push(new SmallMissle(this.game, this.x+2, this.y-9, 7*Math.random()+1, Math.random()*90 + 45))
-                this.game.bullets.push(new SmallMissle(this.game, this.x-3, this.y-12, 7*Math.random()+1, Math.random()*90 + 45))
-                this.game.bullets.push(new SmallMissle(this.game, this.x, this.y-4, 7*Math.random()+1, Math.random()*90 + 45))
+                this.game.bullets.push(new SmallMissle(this.game, this.x-1, this.y-11, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45))
+                this.game.bullets.push(new SmallMissle(this.game, this.x+2, this.y-9, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45))
+                this.game.bullets.push(new SmallMissle(this.game, this.x-3, this.y-12, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45))
+                this.game.bullets.push(new SmallMissle(this.game, this.x, this.y-4, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45))
 
                 this.markedForDeletion = true
             }
@@ -300,7 +301,7 @@ class UI {
             this.parachutes = 3
             this.teleports = 2
             this.power = 80
-            this.maxpower = 25 // actual multiplier being passed into bullet, sensitive
+            this.maxpower = 100 // actual multiplier being passed into bullet, sensitive
             this.angle = 90
             this.ammo = {SmallMissle:8}
             this.bullet = VolcanoBomb
