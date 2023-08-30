@@ -1,0 +1,21 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+#canvas, #ground {
+    border: 5px solid black;
+    position: absolute;
+    top:50%;
+    left:50%;
+    transform: translate(-50%, -50%);
+    background-image:url("snowbg.jpg");
+    background-size: contain;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.hidden {
+    display:none;
+}
