@@ -271,7 +271,7 @@ class UI {
             this.width = this.sprite.width
             this.height = this.sprite.height
             this.owningPlayer = owningPlayer
-            this.tankangle = 45
+            this.tankangle = 0
 
             // to get state changes
             this.oldx = 0
@@ -285,15 +285,15 @@ class UI {
                 this.y += delta/32
             }
 
-            // if (this.oldx != this.x || this.oldy != this.y) {
-            //     // adjust angle to match ground
-            //     // sample 3 points and find average angle
-            //     var dist = 45
-            //     var p1 = this.game.ground.harry[Math.round(this.x - dist)]
-            //     var p2 = this.game.ground.harry[Math.round(this.x)]
-            //     var p3 = this.game.ground.harry[Math.round(this.x + dist)]
-            //     this.tankangle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2) * 180/Math.PI                
-            // }
+            if (this.oldx != this.x || this.oldy != this.y) {
+                // adjust angle to match ground
+                // sample 3 points and find average angle
+                var dist = 45
+                var p1 = this.game.ground.harry[Math.round(this.x - dist)]
+                var p2 = this.game.ground.harry[Math.round(this.x)]
+                var p3 = this.game.ground.harry[Math.round(this.x + dist)]
+                this.tankangle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2) * 180/Math.PI                
+            }
             this.oldx = this.x
             this.oldy = this.y
         }
@@ -308,7 +308,7 @@ class UI {
 
             // draw muzzle 
             context.save()
-            context.translate(this.x + this.muzzle.width/2 - this.sprite.height*Math.cos(this.tankangle * 180/Math.PI), this.y - this.muzzle.width/2 + 5 - this.sprite.height*Math.sin(this.tankangle * 180/Math.PI))
+            context.translate(this.x + this.muzzle.width/2 + this.sprite.width/2*Math.cos((this.tankangle-90) * Math.PI/180), this.y - this.muzzle.width/2 + 5 - this.sprite.height + this.sprite.height*Math.sin((Math.abs(this.tankangle)) * Math.PI/180))
             context.rotate(-(this.owningPlayer.angle + 90) * Math.PI/180)
             context.drawImage(this.muzzle, -this.muzzle.width/2, 0, this.muzzle.width, this.muzzle.height)
             context.restore()
