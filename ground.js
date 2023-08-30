@@ -60,8 +60,11 @@ class Ground {
                     count ++
                 }
             }
-
-            this.harry[w] -= count
+            if (!hitGround) {
+                this.harry[w] = 0
+            } else {
+                this.harry[w] -= count
+            }
         }
 
 
@@ -86,9 +89,7 @@ class Ground {
                 average /= count
                 this.harry[point] = this.harry[point]*(1-weight) + average * weight
             }
-        }
-        console.log(this.harry)
-        
+        }        
     }
 
     // to blow a hole in the ground somewhere
