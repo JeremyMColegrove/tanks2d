@@ -187,11 +187,8 @@ draw (context) {
 
 class Bullet extends Entity {
     room:GameRoom
-    x:number
-    y:number
     power:number
     angle:number
-    markedForDeletion:boolean
     vx:number
     vy:number
     speed:number
@@ -204,14 +201,9 @@ class Bullet extends Entity {
         this.power = power
         this.angle = angle
 
-        this.markedForDeletion = false
         this.vx = this.power*Math.cos(this.angle * Math.PI/180)
         this.vy = -this.power*Math.sin(this.angle * Math.PI/180)
         this.speed = 0.05
-
-        // valdation checks
-        if (this.room == null) console.error(`Game is undefined`)
-        if (angle < 0 || angle > 180) console.error(`Angle should be between 0-180, got ${this.angle}`)
     }
 
     draw(context: CanvasRenderingContext2D) {
@@ -294,32 +286,34 @@ class VolcanoBomb extends Bullet {
     }
 }
 
-class Tank {
-    room:GameRoom
-    x: number
+class Tank extends Entity {
     oldx:number
-    y: number
     oldy:number
     color:string
-    sprite:HTMLElement
+    sprite:Sprite
     muzzle:HTMLElement
-    width:number
-    height:number
     owningPlayer:Player
-    tankangle:number
-    constructor(room, x, y, color, owningPlayer) {
-        this.room = room
-        this.x = x
-        this.y = y
+    // tankangle:number
+    ground:Ground
+    constructor(room:Room, color:string, owningPlayer:Player, ground:Ground) {
+        super(room, 0)
         this.color = color
-        this.sprite = document.getElementById("tank")
+        
+        this.sprite = new Sprite(document.getElementById("tank"))
+        this.sprite.setCenter([8, 16])
+
         this.muzzle = document.getElementById("muzzle")
+        this.ground = ground
         // @ts-ignore 
         this.width = this.sprite.width
         // @ts-ignore 
         this.height = this.sprite.height
         this.owningPlayer = owningPlayer
-        this.tankangle = 0
+        // this.tankangle = 0
+
+        // set x and y coords of tank
+        this.x = ~~(Math.random()*(room.width-400)+200)
+        this.y = this.room.height - ground.harry[this.x]
 
         // to get state changes
         this.oldx = 0
@@ -327,20 +321,21 @@ class Tank {
     }
 
 
-    update(delta) {
+    update(delta:number): void {
         // function to keep tank on ground
-        if (this.y < this.room.height - this.room.ground.harry[Math.round(this.x)]) {
+        if (this.y < this.room.height - this.ground.harry[~~this.x]) {
             this.y += delta/32
         }
 
+        // check for change in x y, expensive computation
         if (this.oldx != this.x || this.oldy != this.y) {
             // adjust angle to match ground
             // sample 3 points and find average angle
-            var dist = 45
-            var p1 = this.room.ground.harry[Math.round(this.x - dist)]
-            var p2 = this.room.ground.harry[Math.round(this.x)]
-            var p3 = this.room.ground.harry[Math.round(this.x + dist)]
-            this.tankangle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2) * 180/Math.PI                
+            var dist = 45.0
+            var p1 = this.ground.harry[~~this.x - dist]
+            var p2 = this.ground.harry[~~this.x]
+            var p3 = this.ground.harry[~~this.x + dist]
+            this.sprite.angle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2)
         }
         this.oldx = this.x
         this.oldy = this.y
@@ -348,26 +343,27 @@ class Tank {
 
     draw (context:CanvasRenderingContext2D): void {
         // draw body (at angle)
-        context.save()
-        context.translate(this.x , this.y)
-        context.rotate(this.tankangle * Math.PI/180)
+        // context.save()
+        // context.translate(this.x , this.y)
+        // context.rotate(this.tankangle * Math.PI/180)
         // @ts-ignore
-        context.drawImage(this.sprite, -this.width/2, -this.height, this.width, this.height)
-        context.restore()
+        this.sprite.draw(context, this.x, this.y)
+        // context.drawImage(this.sprite, -this.width/2, -this.height, this.width, this.height)
+        // context.restore()
 
         // draw muzzle 
-        context.save()
-        // @ts-ignore 
-        context.translate(this.x + this.muzzle.width/2 + this.sprite.width/2*Math.cos((this.tankangle-90) * Math.PI/180), this.y - this.muzzle.width/2 + 5 - this.sprite.height + this.sprite.height*Math.sin((Math.abs(this.tankangle)) * Math.PI/180))
-        context.rotate(-(this.owningPlayer.angle + 90) * Math.PI/180)
-        // @ts-ignore 
-        context.drawImage(this.muzzle, -this.muzzle.width/2, 0, this.muzzle.width, this.muzzle.height)
-        context.restore()
+        // context.save()
+        // // @ts-ignore 
+        // context.translate(this.x + this.muzzle.width/2 + this.sprite.width/2*Math.cos((this.tankangle-90) * Math.PI/180), this.y - this.muzzle.width/2 + 5 - this.sprite.height + this.sprite.height*Math.sin((Math.abs(this.tankangle)) * Math.PI/180))
+        // context.rotate(-(this.owningPlayer.angle + 90) * Math.PI/180)
+        // // @ts-ignore 
+        // context.drawImage(this.muzzle, -this.muzzle.width/2, 0, this.muzzle.width, this.muzzle.height)
+        // context.restore()
     }
 }
 
-class Player extends Entity {
-    room: GameRoom
+class Player {
+    room: Room
     name: string
     color: string
     x: number
@@ -381,15 +377,14 @@ class Player extends Entity {
     maxpower:number
     angle:number
     ammo:{SmallMissle:number}
+    ground:Ground
     bullet: typeof Bullet
-    constructor(room, x, name, color) {
-        super(room)
+    constructor(room:Room, name:string, color:string, ground:Ground) {
         this.room = room
         this.name = name
         this.color = color
-        this.x = x
         //all of our settings
-        this.tank = new Tank(this.room, this.x, this.room.height - this.room.ground.harry[x], this.color, this)
+        this.tank = new Tank(this.room, this.color, this, ground)
         this.gas = 100
         this.health = 100
         this.repairs = 8
@@ -401,14 +396,6 @@ class Player extends Entity {
         this.ammo = {SmallMissle:8}
         this.bullet = VolcanoBomb
     }
-
-    update(delta:number): void {
-        this.tank.update(delta)
-    }
-
-    draw(context:CanvasRenderingContext2D): void {
-        this.tank.draw(context)
-    }
 }
 
 enum GAME_STATES {
@@ -419,17 +406,6 @@ enum GAME_STATES {
 }
 
 
-class Tester extends Entity {
-    constructor(room, layer) {
-        super(room, layer)
-    }
-    update(delta: any): void {
-        
-    }
-    draw(context: any): void {
-        
-    }
-}
 
 class GameRoom extends Room {
     canvas: HTMLCanvasElement
@@ -456,7 +432,7 @@ class GameRoom extends Room {
         this.state = GAME_STATES.READY
     }
 
-    onEnter(passed) {
+    onEnter(passed:Passer) {
         this.addPlayer({name:"Samantha", color:"blue"})
         this.addPlayer({name:"Jeremy", color:"red"})
 
@@ -465,11 +441,11 @@ class GameRoom extends Room {
     }
 
     addPlayer({name, color}) {
-        this.players.push(new Player(this, Math.round(Math.random()*(this.width-200))+100, name, color))
+        this.players.push(new Player(this, name, color, this.ground))
     }
 
     randomWind() {
-        return Math.round(Math.random()*40) - 20
+        return ~~(Math.random()*40 - 20)
     }
 
     update (delta) {
@@ -483,7 +459,6 @@ class GameRoom extends Room {
             this.state = GAME_STATES.FIRED
         }
         
-        // console.log(this.entityHandler.entityExists(Bullet))
         if (this.state == GAME_STATES.FIRED && !this.entityHandler.entityExists(Bullet)) {
 
             // next player
@@ -505,14 +480,6 @@ class GameRoom extends Room {
 
     }
 }
-
-// object type of information passed current room to next room when changed
-type Passer = {
-    name:string,
-    info: Object
-}
-
-type Pass = (info: Object) => void
 
 class TerrainRoom extends Room {
     constructor(controller) {

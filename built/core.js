@@ -43,24 +43,79 @@ class EntityHandler {
     update(delta) {
         this.entities.forEach(entity => entity.update(delta));
         // remove deleted entities and update map
-        this.entities = this.entities.filter((entity) => !entity._markedForDeletion);
+        this.entities = this.entities.filter((entity) => !entity.markedForDeletion);
     }
     draw(context) {
         this.entities.forEach((entity) => entity.draw(context));
     }
 }
+class Sprite {
+    constructor(img) {
+        this.setSprite(img);
+        this.center = [0, 0];
+        this.tint = "white";
+        this.angle = 0;
+        this.width = 0;
+        this.height = 0;
+        this.scale = 1;
+    }
+    draw(context, x, y) {
+        // translate to sprite center
+        context.translate(x - this.center[0], y - this.center[1]);
+        // rotate
+        if (this.angle != 0.0) {
+            context.rotate(this.angle);
+        }
+        // draw image
+        context.drawImage(this.img, 0, 0);
+        // rotate back
+        if (this.angle != 0.0) {
+            context.rotate(-this.angle);
+        }
+        // translate back
+        context.translate(-(x - this.center[0]), -(y - this.center[1]));
+    }
+    setScale(scale) {
+        this.scale = scale;
+        return this;
+    }
+    setTint(tint) {
+        this.tint = tint;
+        return this;
+    }
+    setCenter(center) {
+        this.center = center;
+        return this;
+    }
+    setSprite(img) {
+        this.img = img;
+        this.width = this.img.width;
+        this.height = this.img.height;
+        return this;
+    }
+}
 class Entity {
     constructor(room, layer = 0) {
         // public
-        this._entityHandler = room.entityHandler;
-        this._markedForDeletion = false;
+        this.markedForDeletion = false;
         this.layer = layer;
+        this.room = room;
+        this.x = 0;
+        this.y = 0;
+        this.sprite = null;
         // private
-        this._id = Math.round(Math.random() * 8888888888 + 1111111111);
-        room._addEntity(this);
+        this.id = Math.round(Math.random() * 8888888888 + 1111111111);
+        room.addEntity(this);
+    }
+    setSprite(sprite) {
+        this.sprite = sprite;
+        return this;
     }
     destroy() {
-        this._markedForDeletion = true;
+        this.markedForDeletion = true;
+    }
+    drawSprite(sprite, x, y, angle) {
+        this.room.controller.context.drawImage(sprite, x, y);
     }
 }
 class Controller {
@@ -74,7 +129,7 @@ class Controller {
         var _a, _b;
         var pass;
         (_a = this.room) === null || _a === void 0 ? void 0 : _a.onExit((info) => pass = info);
-        pass = { from: (_b = this.room) === null || _b === void 0 ? void 0 : _b._name, info: pass };
+        pass = { from: (_b = this.room) === null || _b === void 0 ? void 0 : _b.name, info: pass };
         this.room = new room(this);
         this.room.onEnter(pass);
     }
@@ -92,12 +147,12 @@ class Room {
         this.controller = controller;
         this.width = this.controller.canvas.width;
         this.height = this.controller.canvas.height;
-        this._name = name;
-        this._id = Math.round(Math.random() * 8888888888 + 1111111111);
+        this.name = name;
+        this.id = Math.round(Math.random() * 8888888888 + 1111111111);
         this.entityHandler = new EntityHandler();
         this.inputHandler = new InputHandler(controller.canvas, controller.resolution);
     }
-    _addEntity(entity) {
+    addEntity(entity) {
         this.entityHandler.addEntity(entity);
     }
     update(delta) {
