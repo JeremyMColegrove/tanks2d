@@ -132,6 +132,8 @@ class Tank extends Entity {
         var startOfMuzzle = Utility.rotatePoint(this.x, this.y, this.sprite.width-3, this.sprite.angle)
         var endOfMuzzle = Utility.rotatePoint(startOfMuzzle[0], startOfMuzzle[1], this.muzzle.width, this.muzzle.angle )
         new this.owningPlayer.bullet(this.room, endOfMuzzle[0], endOfMuzzle[1], this.owningPlayer.power/100 * this.owningPlayer.maxpower, this.muzzle.angle)
+        this.room['state'] = GAME_STATES.FIRED
+
     }
 
     update(delta:number): void {
@@ -218,61 +220,111 @@ class GameRoom extends Room {
     player: Player
     wind: number
     state: GAME_STATES
+    angleElement:SliderElement
+    powerElement:SliderElement
     constructor(controller) {
         super(controller, "Game Room")
         this.canvas = this.controller.canvas
         this.context = this.controller.context
         this.width = this.canvas.width
         this.height = this.canvas.height
-        this.ground = new Ground(this, this.context, [245, 245, 255])
+        
         this.players = []
         this.player = null
         this.wind = this.randomWind()
         this.state = GAME_STATES.READY
     }
 
-    onEnter(passed:Passer) {
-        this.addPlayer({name:"Samantha", color:"blue"})
-        this.addPlayer({name:"Jeremy", color:"red"})
+    onEnter(passed:RoomInfo, backgroundContext:CanvasRenderingContext2D) {
+        var background:SupportedImageSource
+        var color:[number, number, number]
+        if (passed.info.terrain == Terrains.MOUNTAINS) {
+            background = <HTMLImageElement>document.getElementById("bg-snow")
+            color = [245, 245, 255]
+        } else if (passed.info.terrain == Terrains.FOREST) {
+            background = <HTMLImageElement>document.getElementById("bg-forest")
+            color = [144, 191, 54]
+        } else if (passed.info.terrain == Terrains.DESERT) {
+            background = <HTMLImageElement>document.getElementById("bg-desert")
+            // color = [186, 67, 12]
+            color = [150, 51, 6]
+        } else {
+            background = <HTMLImageElement>document.getElementById("bg-snow")
+            color = [213, 152, 126]
+        } 
 
+        // draw the room background
+        backgroundContext.drawImage(background, 0, 0, this.width, this.height)
+
+        // create the ground
+        this.ground = new Ground(this, this.context, color)
+
+        // create the players
+        passed.info['playerinfo'].forEach(player=>this.addPlayer({name:player.name, color:player.color}))
+        
         // set players turn to first player in list
         this.player = this.players[0]
 
-        this.player.angle = Math.PI/4
-
         
-        // create GUI Elements after players have been created
 
-        var angleText = new DivElement(this, this.width/3 + 170, 50, {fontSize:"25px"}, (element)=>{
+        // create GUI Elements after players have been created
+        var angleText = new DivElement(this, this.width/3 + 170, 70, {}, (element)=>{
             element.innerText = `${~~(this.player.angle * 180/Math.PI)}`
         })
 
-        var angleElement = new SliderElement(this, this.width/3 + 150, 20, 1-(this.player.angle / Math.PI), {width:"150px", height:"10px"}, (event)=>{
+        this.angleElement = new SliderElement(this, this.width/3 + 150, 30, 1-(this.player.angle / Math.PI), 
+            {width:"150px", height:"10px", backgroundImage:"url(../img/gradient-horizontal.png)", backgroundSize:"cover", backgroundRepeat:"no-repeat"}, 
+            (event)=>{
             // when the slider is moved
             this.player.angle = (1-event.target.value) * Math.PI
             angleText.sync()
         }, (element)=> {
             element['value'] = 1 - (this.player.angle / Math.PI)
+            angleText.sync()
         })
 
-        var powerText = new DivElement(this, this.width/3 + 30, 100, {fontSize:"25px"}, (element)=>{
+        var powerText = new DivElement(this, this.width/3 + 30, 100, {}, (element)=>{
             element.innerText = `${~~this.player.power}`
         })
 
-        var powerElement = new SliderElement(this, this.width/3, 60, 0.5, {width:"100px", height:"10px", transform:"rotate(270deg)"}, (event)=>{
+        this.powerElement = new SliderElement(this, this.width/3, 60, 0.5, 
+        {width:"100px", height:"40px", transform:"rotate(270deg)", backgroundImage:"url(../img/gradient-vertical.png)", backgroundSize:"100% 100%", backgroundRepeat:"no-repeat"}, 
+        (event)=>{
             // when the slider is moved
             this.player.power = (event.target.value) * 100
             powerText.sync()
         }, (element)=>{
             element['value'] = this.player.power / 100
+            powerText.sync()
         })
 
-        var nameText = new DivElement(this, 0, 0, {fontSize:"25px",border:"solid",borderColor:"rgba(179, 179, 179, 0.329)", borderWidth:"2px", paddingBlock:"10px", paddingInline:"40px"}, (element)=>{
+        var nameText = new DivElement(this, 0, 0, {border:"solid",borderColor:"rgba(179, 179, 179, 0.329)", borderWidth:"2px", paddingBlock:"10px", paddingInline:"40px"}, (element)=>{
             element.innerText = this.player.name
             nameText.x = element.clientWidth / 2
             nameText.y = element.clientHeight / 2
         })
 
+        // fire button
+        var fireButton = new ButtonElement(this, this.width/3 + 150, 100, {width:"75px", height:"35px"},()=>{
+            
+            this.player.tank.shoot()
+        }, 
+        (element)=>{
+            element.value = "Fire"
+        })
+
+        // clouds
+        new ImageElement(this, this.width/2 + 200, 90, "../img/cloudr.png", {width:"50px", height:"50px", objectFit:"contain"}, (element)=>{
+            if (this.wind > 0) {
+                element.src = "../img/cloudr.png"
+            } else {
+                element.src = "../img/cloudl.png"
+            }
+        })
+
+        new DivElement(this, this.width/2 + 250, 90, {}, (element) => {
+            element.innerText = `${Math.abs(this.wind)}`
+        })
 
         // event that gets triggered whenever a player should change
         window.addEventListener("player-change", ()=> {
@@ -306,9 +358,16 @@ class GameRoom extends Room {
         if (InputSingleton.getInstance().keys.has(' ') && this.state == GAME_STATES.READY) {
             // create new enemy bullet in room
             this.player.tank.shoot()
-            this.state = GAME_STATES.FIRED
         }
         
+        if (InputSingleton.getInstance().keys.has('ArrowDown') && this.player.angle > 0) {
+            this.player.angle -= 0.01
+            this.angleElement.sync()
+        }
+        if (InputSingleton.getInstance().keys.has('ArrowUp') && this.player.angle < Math.PI) {
+            this.player.angle += 0.01
+            this.angleElement.sync()
+        }
         if (this.state == GAME_STATES.FIRED && !this.entityHandler.entityExists(Bullet)) {
             window.dispatchEvent(PLAYERCHANGE)
         }
@@ -323,18 +382,151 @@ class GameRoom extends Room {
     }
 }
 
-class TerrainRoom extends Room {
+class PlayerDetailsRoom extends Room {
+    passed: Passer
+    information:Array<Object>
+    curplayer:number
     constructor(controller) {
-        super(controller, "Terrain Room")
+        super(controller, "Player Details Room")
+        this.curplayer = 0
     }
 
-    onEnter(passed: Passer): void {
+    onEnter(passed: Passer, backgroundContext: CanvasRenderingContext2D): void {
+        backgroundContext.clearRect(0, 0, this.width, this.height)
+        backgroundContext.drawImage(<HTMLImageElement>document.getElementById("bg-playerdetail"), 0, 0, this.width, this.height)
+        this.passed = passed
+        console.log(this.passed)
+        
+        // create GUI elements
+        new DivElement(this, 540, 350, {fontWeight:"900", fontSize:"40px"}, (element)=>{
+            element.innerText = `PLAYER ${this.curplayer + 1}`
+        })
 
+        new DivElement(this, 400, 425, {}, (element)=>{
+            element.innerText = `NAME: `
+        })
+        var name = new InputElement(this, 590, 420, {width:"250px", height:"50px", border:"solid",padding:"2px", borderWidth:"2px", borderColor:"black"}, (element)=>{
+            element.value = ""
+        })
+
+        new DivElement(this, 400, 500, {}, (element)=>{
+            element.innerText = `COLOR: `
+        })
+        // create each of our radio inputs
+        var radios = [
+            new RadioButton("c", "", "red", {backgroundColor:"rgb(255, 100, 100)"}), 
+            new RadioButton("c", "", "green", {backgroundColor:"rgb(100, 255, 100)"}), 
+            new RadioButton("c", "", "yellow", {backgroundColor:"rgb(255, 255, 100)"}), 
+            new RadioButton("c", "", "blue", {backgroundColor:"rgb(100, 100, 255)"})]
+        var colors = new RadioElement(this, 540, 495, radios, {display:"flex", flexDirection:"row"})
+
+        new DivElement(this, 490, 580, {fontWeight:"900", fontSize:"40px"}, (element)=>{
+            if (this.curplayer==passed.info['players']-1) {
+                element.innerText = `START!`
+            } else {
+                element.innerText = `NEXT PLAYER`
+            }
+        })
+
+        new ButtonElement(this, 690, 575, {width:"70px", height:"50px", backgroundImage:"url(../img/nextarrow.png)",backgroundSize:"contain",backgroundRepeat:"no-repeat", backgroundColor:"transparent", border:"none"}, ()=> {
+            var playerinfo = {name:name.element['value'], color:colors.getChecked()}
+            this.passed.info['playerinfo'].push(playerinfo)
+
+            // actually play the game
+            if (this.curplayer < passed.info['players'] - 1) {
+                this.curplayer ++
+                this.guiHandler.syncAll()
+            } else {
+                this.controller.goToRoom(GameRoom)
+            }
+        })
+        this.guiHandler.syncAll()
+    }
+
+    onExit(pass: Pass): void {
+        pass(this.passed.info)
+    }
+}
+
+enum Terrains {
+    MOUNTAINS,
+    FOREST,
+    DESERT,
+    RANDOM
+}
+
+type PlayerInfo = {name:string, color:string}
+type RoomInfo = {from:string, info:{players:number, terrain:Terrains, playerinfo:Array<PlayerInfo>}}
+
+class TerrainRoom extends Room {
+    private playercount:number
+    private _terrains:RadioElement
+    constructor(controller) {
+        super(controller, "Terrain Room")
+        this.playercount = 1
+    }
+
+    onEnter(passed: RoomInfo, backgroundContext:CanvasRenderingContext2D): void {
+        backgroundContext.clearRect(0, 0, this.width, this.height)
+        backgroundContext.drawImage(<HTMLImageElement>document.getElementById("bg-main"), 0, 0, this.width, this.height)
+    
+        // define GUI here
+        new DivElement(this, 310, 350, {fontWeight:"900", fontSize:"40px"}, (element)=>{
+            element.innerText = "TERRAIN TYPE"
+        })
+
+        new DivElement(this, 690, 350, {fontWeight:"900", fontSize:"40px"}, (element)=>{
+            element.innerText = "CONTROLS"
+        })
+
+        new DivElement(this, 690, 575, {fontSize:"25px"}, (element)=>{
+            element.innerText = `LEFT & RIGHT ARROW\nMOVE\n\nUP & DOWN ARROW\nCANNON ROTATION\n\nPGUP & PGDN\nFIRE POWER\n\n"Q" & "W"\nCHANGE WEAPON\n\nSPACE\nFIRE`
+        })
+
+        // create each of our radio inputs
+        var radios = [
+            new RadioButton("t", "MOUNTAINS", Terrains.MOUNTAINS), 
+            new RadioButton("t", "FOREST", Terrains.FOREST), 
+            new RadioButton("t", "DESERT", Terrains.DESERT), 
+            new RadioButton("t", "RANDOM", Terrains.RANDOM)]
+        this._terrains = new RadioElement(this, 275, 465, radios, {})
+
+        new DivElement(this, 310, 595, {fontWeight:"900", fontSize:"40px"}, (element)=>{
+            element.innerText = "PLAYERS"
+        })
+
+        new DivElement(this, 310, 660, {fontSize:"25px"}, (element)=>{
+            element.innerText = `TOTAL PLAYERS\n(2 PLAYERS =\n2 HUMAN PLAYERS)`
+        })
+
+        var playerdiv =new DivElement(this, 190, 730, {width:"50px", height:"50px",fontSize:"35px", borderRadius:"50%", border:"solid", borderColor:"black", borderWidth:"3px", backgroundColor:"white", display:"flex", justifyContent:"center", alignItems:"center"}, (element)=> {
+            element.innerText = `${this.playercount}`
+        })
+
+        new ButtonElement(this, 320, 730, {width:"30px", height:"30px", backgroundImage:"url(../img/rightarrow.png)",backgroundSize:"contain", backgroundColor:"transparent", border:"none"}, ()=> {
+            if (this.playercount < 4) {
+                this.playercount ++
+                playerdiv.sync()
+            }
+        })
+        new ButtonElement(this, 260, 730, {width:"30px", height:"30px", backgroundImage:"url(../img/leftarrow.png)",backgroundSize:"contain", backgroundColor:"transparent", border:"none"}, ()=> {
+            if (this.playercount > 1) {
+                this.playercount --
+                playerdiv.sync()
+            }
+        })
+
+        new ButtonElement(this, this.width - 100, this.height - 50, {width:"70px", height:"50px", backgroundImage:"url(../img/nextarrow.png)",backgroundSize:"contain",backgroundRepeat:"no-repeat", backgroundColor:"transparent", border:"none"}, ()=> {
+            // go to next room
+            this.controller.goToRoom(PlayerDetailsRoom)
+        })
+        
+        this.guiHandler.syncAll()
     }
     
     onExit(pass: Pass): void {
         // pass values of names and stuff to next room
-        pass({name:"Hello, world!"})
+        pass({players:this.playercount, terrain:this._terrains.getChecked(), playerinfo:[]})
     }
 
     update(delta): void {

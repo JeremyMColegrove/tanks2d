@@ -77,6 +77,9 @@ abstract class UIElement {
         this._room.guiHandler.addElement(this)
     }
 
+    get id() {
+        return this._id
+    }
     get scale() {
         return this._scale
     }
@@ -99,7 +102,7 @@ abstract class UIElement {
     abstract defaultStyles():Partial<CSSStyleDeclaration>
 
     sync() {
-        this._onsync(this.element)
+        if (this._onsync) this._onsync(this.element)
     }
 
     delete() {
@@ -187,6 +190,7 @@ class DivElement extends UIElement {
         ele.className = "_divelement"
         return ele
     }
+
     defaultStyles(): Partial<CSSStyleDeclaration> {
         return {textAlign:'center'}
     }
@@ -214,6 +218,67 @@ class SliderElement extends UIElement {
     }
     defaultStyles(): Partial<CSSStyleDeclaration> {
         return {}
+    }
+}
+
+class RadioButton {
+    element:HTMLInputElement
+    label:string
+    value:string
+    constructor(group:string, label:string, value:any, style:Partial<CSSStyleDeclaration>={}) {
+        this.element = document.createElement('input')
+        this.element.type = 'radio'
+        this.element.name = group
+        this.element.value = value
+        this.label = label
+        this.value = value
+
+        // apply styles passed to styles on element
+        for (const [key, value] of Object.entries(style)) {
+            this.element.style[key] = value
+        }
+    }
+}
+
+class RadioElement extends UIElement {
+    _radios:Array<RadioButton>
+    constructor(room:Room, x:number, y:number, radioButtons:Array<RadioButton>, style:Partial<CSSStyleDeclaration>, onsync:Function=null) {
+        super(room, x, y, style, onsync)
+
+        // add all of the radio groups to the parent div
+        this._radios = radioButtons
+        this._radios.forEach(radio=>{
+            // create a label and append 
+            var label = document.createElement('label')
+            label.innerText = radio.label
+            label.style.display = "flex"
+            label.style.alignItems = "center"
+
+            label.insertBefore(radio.element, label.firstChild)
+            this.element.appendChild(label)
+        })
+        if (this._radios.length > 0) this._radios[~~(Math.random()*this._radios.length-1)].element.checked = true
+    }
+    
+    // returns value of the one who is checked
+    getChecked():string|null {
+        for (var i=0; i<this._radios.length; i++) {
+            if (this._radios[i].element['checked']) {
+                return this._radios[i].element['value']
+            }
+        }
+        return null
+    }
+
+    createElement(): HTMLElement {
+        // wrap inputs in a div
+        var div = document.createElement('div')
+        div.className="_radiogroup"
+        return div
+    }
+
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {display:"flex", flexDirection:"column"}
     }
 }
 
@@ -520,11 +585,15 @@ abstract class Entity {
 // Root object of all other objects, responsible for keeping track of rooms
 class Controller {
     canvas: HTMLCanvasElement
+    backgroundCanvas: HTMLCanvasElement
     context: CanvasRenderingContext2D
+    backgroundContext:CanvasRenderingContext2D
     room: Room
-    constructor(canvas, context) {
+    constructor(canvas, backgroundCanvas) {
         this.canvas = canvas
-        this.context = context
+        this.backgroundCanvas = backgroundCanvas
+        this.context = canvas.getContext('2d')
+        this.backgroundContext = backgroundCanvas.getContext('2d')
         this.room = null
     }
 
@@ -534,7 +603,7 @@ class Controller {
         pass = {from:this.room?.name, info:pass}
         this.room?._unmount()
         this.room = new room(this)
-        this.room.onEnter(pass)
+        this.room.onEnter(pass, this.backgroundContext)
     }
 
     update(delta):void {
@@ -542,7 +611,8 @@ class Controller {
     }
 
     draw():void {
-        this.room?.draw(this.context)
+        // this.backgroundContext.
+        this.room?.draw(this.context, this.backgroundContext)
     }
 }
 
@@ -555,7 +625,7 @@ abstract class Room {
     id:number
     entityHandler:EntityHandler
     guiHandler:GUIHandler
-    constructor(controller, name) {
+    constructor(controller:Controller, name:string) {
         this.controller = controller
         this.width = this.controller.canvas.width
         this.height = this.controller.canvas.height
@@ -565,15 +635,18 @@ abstract class Room {
         this.guiHandler = new GUIHandler()
     }
 
-    addEntity(entity) {
+    addEntity(entity:Entity) {
         this.entityHandler.addEntity(entity)
     }
 
-    update(delta) {
+    update(delta:number) {
         this.entityHandler.update(delta)
     }
 
-    draw (context) {
+    draw (context:CanvasRenderingContext2D, backgroundContext:CanvasRenderingContext2D|null=null) {
+        // clear the room
+        context.clearRect(0, 0, this.width, this.height)
+        // draw all entities to room to main context
         this.entityHandler.draw(context)
     }
 
@@ -582,7 +655,7 @@ abstract class Room {
         this.guiHandler.unmount()
     }
 
-    abstract onEnter(passed:Passer):void
+    abstract onEnter(passed:Passer, backgroundContext:CanvasRenderingContext2D):void
 
     abstract onExit(pass:Pass):void
 }

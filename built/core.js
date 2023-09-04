@@ -46,6 +46,9 @@ class UIElement {
         // add element to room
         this._room.guiHandler.addElement(this);
     }
+    get id() {
+        return this._id;
+    }
     get scale() {
         return this._scale;
     }
@@ -62,7 +65,8 @@ class UIElement {
         return this._ele;
     }
     sync() {
-        this._onsync(this.element);
+        if (this._onsync)
+            this._onsync(this.element);
     }
     delete() {
         this._room.guiHandler.removeElement(this);
@@ -165,6 +169,56 @@ class SliderElement extends UIElement {
     }
     defaultStyles() {
         return {};
+    }
+}
+class RadioButton {
+    constructor(group, label, value, style = {}) {
+        this.element = document.createElement('input');
+        this.element.type = 'radio';
+        this.element.name = group;
+        this.element.value = value;
+        this.label = label;
+        this.value = value;
+        // apply styles passed to styles on element
+        for (const [key, value] of Object.entries(style)) {
+            this.element.style[key] = value;
+        }
+    }
+}
+class RadioElement extends UIElement {
+    constructor(room, x, y, radioButtons, style, onsync = null) {
+        super(room, x, y, style, onsync);
+        // add all of the radio groups to the parent div
+        this._radios = radioButtons;
+        this._radios.forEach(radio => {
+            // create a label and append 
+            var label = document.createElement('label');
+            label.innerText = radio.label;
+            label.style.display = "flex";
+            label.style.alignItems = "center";
+            label.insertBefore(radio.element, label.firstChild);
+            this.element.appendChild(label);
+        });
+        if (this._radios.length > 0)
+            this._radios[~~(Math.random() * this._radios.length - 1)].element.checked = true;
+    }
+    // returns value of the one who is checked
+    getChecked() {
+        for (var i = 0; i < this._radios.length; i++) {
+            if (this._radios[i].element['checked']) {
+                return this._radios[i].element['value'];
+            }
+        }
+        return null;
+    }
+    createElement() {
+        // wrap inputs in a div
+        var div = document.createElement('div');
+        div.className = "_radiogroup";
+        return div;
+    }
+    defaultStyles() {
+        return { display: "flex", flexDirection: "column" };
     }
 }
 /**
@@ -382,9 +436,11 @@ class Entity {
 }
 // Root object of all other objects, responsible for keeping track of rooms
 class Controller {
-    constructor(canvas, context) {
+    constructor(canvas, backgroundCanvas) {
         this.canvas = canvas;
-        this.context = context;
+        this.backgroundCanvas = backgroundCanvas;
+        this.context = canvas.getContext('2d');
+        this.backgroundContext = backgroundCanvas.getContext('2d');
         this.room = null;
     }
     goToRoom(room) {
@@ -394,7 +450,7 @@ class Controller {
         pass = { from: (_b = this.room) === null || _b === void 0 ? void 0 : _b.name, info: pass };
         (_c = this.room) === null || _c === void 0 ? void 0 : _c._unmount();
         this.room = new room(this);
-        this.room.onEnter(pass);
+        this.room.onEnter(pass, this.backgroundContext);
     }
     update(delta) {
         var _a;
@@ -402,7 +458,8 @@ class Controller {
     }
     draw() {
         var _a;
-        (_a = this.room) === null || _a === void 0 ? void 0 : _a.draw(this.context);
+        // this.backgroundContext.
+        (_a = this.room) === null || _a === void 0 ? void 0 : _a.draw(this.context, this.backgroundContext);
     }
 }
 // A container holding entities and GUI elements
@@ -422,7 +479,10 @@ class Room {
     update(delta) {
         this.entityHandler.update(delta);
     }
-    draw(context) {
+    draw(context, backgroundContext = null) {
+        // clear the room
+        context.clearRect(0, 0, this.width, this.height);
+        // draw all entities to room to main context
         this.entityHandler.draw(context);
     }
     /**@internal */
