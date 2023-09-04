@@ -99,6 +99,7 @@ class VolcanoBomb extends Bullet {
 }
 
 class Tank extends Entity {
+    room:GameRoom
     oldx:number
     oldy:number
     color:string
@@ -106,10 +107,10 @@ class Tank extends Entity {
     muzzle:Sprite
     owningPlayer:Player
     ground:Ground
-    constructor(room:Room, color:string, owningPlayer:Player, ground:Ground) {
+    constructor(room:GameRoom, color:string, owningPlayer:Player, ground:Ground) {
         super(room, 0)
         this.color = color
-        
+        this.room = room
         this.sprite = new Sprite(document.getElementById("tank"))
         this.muzzle = new Sprite(document.getElementById("muzzle"))
 
@@ -136,17 +137,47 @@ class Tank extends Entity {
 
     }
 
+    drive(direction:-1|1):void {
+        if (this.owningPlayer.gas  < 1) return
+
+        var dist = 4.0*direction
+        var p2 = this.ground.harry[~~this.x + dist]
+        var p1 = this.ground.harry[~~this.x + dist * 2]
+        var p3 = this.ground.harry[~~this.x + dist * 3]
+        console.log(Math.abs(Math.atan((p3-p2)/dist)))
+        if (Math.abs(Math.atan((p3-p2)/dist)) < 1.1) {
+            if (Math.abs(Math.atan((p2-p1)/dist)) < 1.1) {
+                this.owningPlayer.gas -= 0.1
+                this.x += 0.1*direction
+                this.y = this.room.height - this.ground.harry[~~this.x] - 1
+                this.room.gasElement.sync()
+            }
+        }
+    }
+
+
     update(delta:number): void {
         // function to keep tank on ground
         if (this.y < this.room.height - this.ground.harry[~~this.x]) {
             this.y += delta/32
         }
 
+        // get moving
+        if (InputSingleton.getInstance().keys.has("ArrowLeft")) {
+            // check if the ground to the left is at a steep angle
+            this.drive(-1)
+        }
+        // get moving
+        if (InputSingleton.getInstance().keys.has("ArrowRight")) {
+            // check if the ground to the left is at a steep angle
+            this.drive(1)
+        }
+
         // check for change in x y, expensive computation
         if (this.oldx != this.x || this.oldy != this.y) {
             // adjust angle to match ground
             // sample 3 points and find average angle
-            var dist = 45.0
+            var dist = 16.0
             var p1 = this.ground.harry[~~this.x - dist]
             var p2 = this.ground.harry[~~this.x]
             var p3 = this.ground.harry[~~this.x + dist]
@@ -166,7 +197,7 @@ class Tank extends Entity {
 }
 
 class Player {
-    room: Room
+    room: GameRoom
     name: string
     color: string
     x: number
@@ -182,7 +213,7 @@ class Player {
     ammo:{SmallMissle:number}
     ground:Ground
     bullet: typeof Bullet
-    constructor(room:Room, name:string, color:string, ground:Ground) {
+    constructor(room:GameRoom, name:string, color:string, ground:Ground) {
         this.room = room
         this.name = name
         this.color = color
@@ -222,13 +253,13 @@ class GameRoom extends Room {
     state: GAME_STATES
     angleElement:SliderElement
     powerElement:SliderElement
+    gasElement:DivElement
     constructor(controller) {
         super(controller, "Game Room")
         this.canvas = this.controller.canvas
         this.context = this.controller.context
         this.width = this.canvas.width
         this.height = this.canvas.height
-        
         this.players = []
         this.player = null
         this.wind = this.randomWind()
@@ -238,6 +269,11 @@ class GameRoom extends Room {
     onEnter(passed:RoomInfo, backgroundContext:CanvasRenderingContext2D) {
         var background:SupportedImageSource
         var color:[number, number, number]
+
+        if (passed.info.terrain == Terrains.RANDOM) {
+            passed.info.terrain = ~~(Math.random()*3) + 1
+        }
+
         if (passed.info.terrain == Terrains.MOUNTAINS) {
             background = <HTMLImageElement>document.getElementById("bg-snow")
             color = [245, 245, 255]
@@ -325,6 +361,12 @@ class GameRoom extends Room {
         new DivElement(this, this.width/2 + 250, 90, {}, (element) => {
             element.innerText = `${Math.abs(this.wind)}`
         })
+
+        this.gasElement = new DivElement(this, 75, 55, {}, (element) => {
+            element.innerText = `${~~Math.abs(this.player.gas)}`
+        })
+        new ImageElement(this, 30, 50, "../img/gas.png", {width:"20px", height:"30px", backgroundSize:"contain", backgroundRepeat:"no-repeat"})
+        
 
         // event that gets triggered whenever a player should change
         window.addEventListener("player-change", ()=> {
@@ -449,10 +491,10 @@ class PlayerDetailsRoom extends Room {
 }
 
 enum Terrains {
-    MOUNTAINS,
-    FOREST,
-    DESERT,
-    RANDOM
+    MOUNTAINS=1,
+    FOREST=2,
+    DESERT=3,
+    RANDOM=4
 }
 
 type PlayerInfo = {name:string, color:string}

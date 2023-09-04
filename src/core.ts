@@ -166,8 +166,7 @@ class ButtonElement extends UIElement {
 class ImageElement extends UIElement {
     constructor(room:Room, x:number, y:number, src:string, style:Partial<CSSStyleDeclaration>={}, sync:Function=null) {
         super(room, x, y, style, sync)
-        var img = this.element
-        img['src'] = src
+        this.element['src'] = src
     }
 
     createElement(): HTMLElement {

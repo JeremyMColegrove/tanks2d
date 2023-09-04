@@ -124,8 +124,7 @@ class ButtonElement extends UIElement {
 class ImageElement extends UIElement {
     constructor(room, x, y, src, style = {}, sync = null) {
         super(room, x, y, style, sync);
-        var img = this.element;
-        img['src'] = src;
+        this.element['src'] = src;
     }
     createElement() {
         var ele = document.createElement("img");

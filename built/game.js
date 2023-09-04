@@ -75,6 +75,7 @@ class Tank extends Entity {
     constructor(room, color, owningPlayer, ground) {
         super(room, 0);
         this.color = color;
+        this.room = room;
         this.sprite = new Sprite(document.getElementById("tank"));
         this.muzzle = new Sprite(document.getElementById("muzzle"));
         this.sprite.center([0, this.sprite.height / 2]).tint(color);
@@ -94,16 +95,43 @@ class Tank extends Entity {
         new this.owningPlayer.bullet(this.room, endOfMuzzle[0], endOfMuzzle[1], this.owningPlayer.power / 100 * this.owningPlayer.maxpower, this.muzzle.angle);
         this.room['state'] = GAME_STATES.FIRED;
     }
+    drive(direction) {
+        if (this.owningPlayer.gas < 1)
+            return;
+        var dist = 4.0 * direction;
+        var p2 = this.ground.harry[~~this.x + dist];
+        var p1 = this.ground.harry[~~this.x + dist * 2];
+        var p3 = this.ground.harry[~~this.x + dist * 3];
+        console.log(Math.abs(Math.atan((p3 - p2) / dist)));
+        if (Math.abs(Math.atan((p3 - p2) / dist)) < 1.1) {
+            if (Math.abs(Math.atan((p2 - p1) / dist)) < 1.1) {
+                this.owningPlayer.gas -= 0.1;
+                this.x += 0.1 * direction;
+                this.y = this.room.height - this.ground.harry[~~this.x] - 1;
+                this.room.gasElement.sync();
+            }
+        }
+    }
     update(delta) {
         // function to keep tank on ground
         if (this.y < this.room.height - this.ground.harry[~~this.x]) {
             this.y += delta / 32;
         }
+        // get moving
+        if (InputSingleton.getInstance().keys.has("ArrowLeft")) {
+            // check if the ground to the left is at a steep angle
+            this.drive(-1);
+        }
+        // get moving
+        if (InputSingleton.getInstance().keys.has("ArrowRight")) {
+            // check if the ground to the left is at a steep angle
+            this.drive(1);
+        }
         // check for change in x y, expensive computation
         if (this.oldx != this.x || this.oldy != this.y) {
             // adjust angle to match ground
             // sample 3 points and find average angle
-            var dist = 45.0;
+            var dist = 16.0;
             var p1 = this.ground.harry[~~this.x - dist];
             var p2 = this.ground.harry[~~this.x];
             var p3 = this.ground.harry[~~this.x + dist];
@@ -161,6 +189,9 @@ class GameRoom extends Room {
     onEnter(passed, backgroundContext) {
         var background;
         var color;
+        if (passed.info.terrain == Terrains.RANDOM) {
+            passed.info.terrain = ~~(Math.random() * 3) + 1;
+        }
         if (passed.info.terrain == Terrains.MOUNTAINS) {
             background = document.getElementById("bg-snow");
             color = [245, 245, 255];
@@ -232,6 +263,10 @@ class GameRoom extends Room {
         new DivElement(this, this.width / 2 + 250, 90, {}, (element) => {
             element.innerText = `${Math.abs(this.wind)}`;
         });
+        this.gasElement = new DivElement(this, 75, 55, {}, (element) => {
+            element.innerText = `${~~Math.abs(this.player.gas)}`;
+        });
+        new ImageElement(this, 30, 50, "../img/gas.png", { width: "20px", height: "30px", backgroundSize: "contain", backgroundRepeat: "no-repeat" });
         // event that gets triggered whenever a player should change
         window.addEventListener("player-change", () => {
             // next player
@@ -337,10 +372,10 @@ class PlayerDetailsRoom extends Room {
 }
 var Terrains;
 (function (Terrains) {
-    Terrains[Terrains["MOUNTAINS"] = 0] = "MOUNTAINS";
-    Terrains[Terrains["FOREST"] = 1] = "FOREST";
-    Terrains[Terrains["DESERT"] = 2] = "DESERT";
-    Terrains[Terrains["RANDOM"] = 3] = "RANDOM";
+    Terrains[Terrains["MOUNTAINS"] = 1] = "MOUNTAINS";
+    Terrains[Terrains["FOREST"] = 2] = "FOREST";
+    Terrains[Terrains["DESERT"] = 3] = "DESERT";
+    Terrains[Terrains["RANDOM"] = 4] = "RANDOM";
 })(Terrains || (Terrains = {}));
 class TerrainRoom extends Room {
     constructor(controller) {
