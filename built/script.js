@@ -1,5 +1,3 @@
-// @ts-nocheck
-let mx, my;
 window.addEventListener("load", function () {
     // const evPlayerChange = new Event("player-change")
     const canvas = this.document.getElementById("canvas");
@@ -7,7 +5,7 @@ window.addEventListener("load", function () {
     const resolution = 1280;
     canvas.width = resolution;
     canvas.height = resolution / 1.5;
-    const controller = new Controller(canvas, context, resolution);
+    const controller = new Controller(canvas, context);
     // go to first room
     controller.goToRoom(GameRoom);
     var lastTime = 0;

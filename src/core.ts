@@ -1,39 +1,346 @@
-/* new T() */
+/***
+ * @internal
+ * new T() */
 type Newable<T> = { new (...args: any[]): T; };
 
-// object type of information passed current room to next room when changed
+// object type of information passed to current room by previous room
 type Passer = {
     from:string,
     info: Object
 }
 
+// Custom function that is given to a rooms onExit() to pass information to the next room
 type Pass = (info: Object) => void
 
-class InputHandler {
-    private canvas:HTMLCanvasElement
-    private resolution:number
-    mx: number
-    my: number
-    keys: Set<string>
-    constructor(canvas:HTMLCanvasElement, resolution:number) {
-        this.canvas = canvas
-        this.resolution = resolution
-        this.mx = 0
-        this.my = 0
-        this.keys = new Set()
-        window.addEventListener("keydown", e => {
-            this.keys.add(e.key)
-        })
-        window.addEventListener("keyup", e=>{
-            this.keys.delete(e.key)
-        })
-        window.addEventListener("mousemove", e=>{
-            this.mx = e.offsetX * this.resolution/this.canvas.clientWidth
-            this.my = e.offsetY * this.resolution/this.canvas.clientWidth
-        })
+// class for defining helpful static functions
+class Utility {
+    public static rotatePoint(x:number, y:number, distance:number, angle:number): [number, number] {
+
+        // rotate the point around this x and y with distance from x and y distance, rotated angle radians
+        var xx = x + distance*Math.cos(angle)
+        var yy = y + distance*Math.sin(angle)
+        return [xx, yy]
+    }
+
+    public static randomString(length) {
+        let result = '';
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+        const charactersLength = characters.length;
+        let counter = 0;
+        while (counter < length) {
+          result += characters.charAt(Math.floor(Math.random() * charactersLength));
+          counter += 1;
+        }
+        return result;
     }
 }
 
+/**
+ * base class for all UI elements
+ * @internal
+ * */
+abstract class UIElement {
+    x:number
+    y:number
+    private _id
+    private _ele: HTMLElement
+    private _room:Room
+    private _style:Partial<CSSStyleDeclaration>
+    private _defaultStyle:Partial<CSSStyleDeclaration>
+    private _scale:number
+    private _onsync:Function
+    constructor(room:Room, x:number, y:number, style:Partial<CSSStyleDeclaration>={}, onsync:Function=null) {
+        this.x = x
+        this.y = y
+        this._room = room
+        this._style = style
+        this._onsync = onsync
+        this._id = Utility.randomString(10)
+        this._scale = this._room.controller.canvas.clientHeight/this._room.controller.canvas.height
+        // create our element and define some styles
+        this._ele = this.createElement()
+        this._defaultStyle = this.defaultStyles()
+
+        // combine given styles and default styles
+        this._style = Object.assign(this._defaultStyle, this._style)
+
+        // set global things for each UI element that always stay true
+        this._ele.style.position = `absolute`
+        this._ele.id = `${this._id}`
+        
+        // apply styles passed to styles on element
+        for (const [key, value] of Object.entries(this._style)) {
+            this._ele.style[key] = value
+        }
+
+        // add element to room
+        this._room.guiHandler.addElement(this)
+    }
+
+    get scale() {
+        return this._scale
+    }
+    get room() {
+        return this._room
+    }
+    get style() {
+        return this._style
+    }
+
+    set element(element:HTMLElement) {
+        this._ele = element
+    }
+    get element() {
+        return this._ele
+    }
+
+    abstract createElement():HTMLElement
+
+    abstract defaultStyles():Partial<CSSStyleDeclaration>
+
+    sync() {
+        this._onsync(this.element)
+    }
+
+    delete() {
+        this._room.guiHandler.removeElement(this)
+    }
+
+    // refreshes positions of gui elements
+    refresh(canvasRect:DOMRect) {
+        this._scale = this._room.controller.canvas.clientHeight/this._room.controller.canvas.height
+        var w = this._ele.clientWidth
+        var h = this._ele.clientHeight
+        this._ele.style.scale = `${this._scale}`
+        this._ele.style.left = `${((this.x*this._scale - w/2) + canvasRect.left )}px`
+        this._ele.style.top = `${((this.y*this._scale - h/2) + canvasRect.top)}px`
+    }
+}
+
+// HTML DOM input of type text
+class InputElement extends UIElement {
+    constructor(room:Room, x:number, y:number, style:Partial<CSSStyleDeclaration>={}, sync:Function=null) {
+        super(room, x, y, style, sync)
+    }
+    createElement(): HTMLElement {
+        var ele = document.createElement("input")
+        ele.className = "_inputelement"
+        return ele
+    }
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {outline:'none', outlineStyle:"none"}
+    }
+    refresh(canvasRect: DOMRect): void { 
+        super.refresh(canvasRect)
+        // this.element.style.fontSize = `${Number.parseInt(this.style.fontSize) * this.scale}px`
+    }
+}
+
+// HTML DOM button element
+class ButtonElement extends UIElement {
+    private _callback:Function
+    constructor(room:Room, x:number, y:number, style:Partial<CSSStyleDeclaration>={}, callback:Function, sync:Function=null) {
+        super(room, x, y, style, sync)
+        this._callback = callback
+    }
+    createElement(): HTMLElement {
+        var ele = document.createElement("input")
+        ele.type = "button"
+        ele.onclick = ()=>this._callback()
+        ele.className = "_buttonelement"
+        return ele
+    }
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {}
+    }
+    refresh(canvasRect: DOMRect): void {
+        super.refresh(canvasRect)
+        this.element.style.fontSize = `${Number.parseInt(this.style.fontSize) * this.scale}px`
+    }
+}
+
+// HTML DOM image element
+class ImageElement extends UIElement {
+    constructor(room:Room, x:number, y:number, src:string, style:Partial<CSSStyleDeclaration>={}, sync:Function=null) {
+        super(room, x, y, style, sync)
+        var img = this.element
+        img['src'] = src
+    }
+
+    createElement(): HTMLElement {
+        var ele = document.createElement("img")
+        ele.className = "_imageelement"
+        return ele
+    }
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {backgroundSize:"contain", backgroundRepeat:"no-repeat"}
+    }
+}
+
+// HTML DOM div element
+class DivElement extends UIElement {
+    constructor(room:Room, x:number, y:number, style:Partial<CSSStyleDeclaration>={},  sync:Function=null) {
+        super(room, x, y, style, sync)
+    }
+    createElement(): HTMLElement {
+        var ele = document.createElement("div")
+        ele.className = "_divelement"
+        return ele
+    }
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {textAlign:'center'}
+    }
+}
+
+// HTML DOM slider element
+class SliderElement extends UIElement {
+    _onchange:Function
+    _onrefresh:Function
+    constructor(room:Room, x:number, y:number, value:number, style:Partial<CSSStyleDeclaration>={}, onchange:Function, sync:Function=null) {
+        super(room, x, y, style, sync)
+        this.element['value'] = `${value}`
+        this._onchange = onchange
+    }
+    
+    createElement(): HTMLElement {
+        var ele = document.createElement("input")
+        ele.type = "range"
+        ele.min = `0.0`
+        ele.max = `1.0`
+        ele.step="0.01"
+        ele.className = "_sliderelement"
+        ele.oninput = (e)=> this._onchange(e)
+        return ele
+    }
+    defaultStyles(): Partial<CSSStyleDeclaration> {
+        return {}
+    }
+}
+
+/**
+ * Handles all UI elements and handles each elements refreshing, not user-accessible
+ * @internal
+ * */
+class GUIHandler {
+    private _elements:Array<UIElement>
+    private _GUIparent:HTMLElement
+    private _canvas:HTMLCanvasElement
+    constructor() {
+        this._elements = []
+        this._GUIparent = document.getElementById("GUI")
+        this._canvas = <HTMLCanvasElement>document.getElementById("canvas")
+
+        // create watcher on canvas size
+        new ResizeObserver(()=>this.refresh()).observe(this._canvas)
+    }
+
+    syncAll() {
+        this._elements.forEach(element=>element.sync())
+    }
+
+    // refreshes the position of each of the gui elements
+    refresh() {
+        var rect = this._canvas.getBoundingClientRect()
+        this._elements.forEach(ele=>ele.refresh(rect))
+    }
+
+    removeElement(GUIelement:UIElement) {
+        this._elements.filter(ele=>ele!=GUIelement)
+        this._GUIparent.removeChild(GUIelement.element)
+    }
+
+    addElement(GUIelement: UIElement) {
+        this._elements.push(GUIelement)
+        this._GUIparent.appendChild(GUIelement.element)
+        this.refresh()
+    }
+
+    unmount() {
+        // remove all items from DOM
+        this._elements.forEach(ele=>this.removeElement(ele))
+    }
+}
+
+// Singleton class for handling all inputs (keyboard, mouse, etc)
+class InputSingleton {
+    private static instance:InputSingleton
+    private canvas:HTMLCanvasElement
+    private _oldx:number
+    private _oldy:number
+    private _mx: number
+    private _my: number
+    private _keys: Set<string>
+    private _delta: [number, number]
+    private _mousedown:boolean
+    private constructor(canvas:HTMLCanvasElement) {
+        this.canvas = canvas
+        this._mx = 0
+        this._my = 0
+        this._oldx = 0
+        this._oldy = 0
+        this._keys = new Set()
+        this._mousedown = false
+
+        window.addEventListener("keydown", e => {
+            this._keys.add(e.key)
+        })
+
+        window.addEventListener("keyup", e=>{
+            this._keys.delete(e.key)
+        })
+
+        window.addEventListener("mousemove", e=>{
+            this._mx = e.offsetX * this.canvas.width/this.canvas.clientWidth
+            this._my = e.offsetY * this.canvas.height/this.canvas.clientHeight
+            this._delta = [(this._mx - this._oldx)/2, (this._my - this._oldy)/2]
+            this._oldx = this._mx
+            this._oldy = this._my
+        })
+
+        window.addEventListener("mousedown", e=>{
+            this._mousedown = true
+        })
+
+        window.addEventListener("mouseup", e=>{
+            this._mousedown = false
+        })
+    }
+
+    get mousedown() {
+        return this._mousedown
+    }
+    get delta() {
+        return this._delta
+    }
+
+    get mx() {
+
+        return this._mx
+    }
+
+    get my() {
+        return this._my
+    }
+
+    get keys() {
+        return this._keys
+    }
+
+    public static getInstance() {
+        if (!InputSingleton.instance) {
+            var canvas = <HTMLCanvasElement> document.getElementById('canvas')
+            InputSingleton.instance = new InputSingleton(canvas)
+        }
+
+        return InputSingleton.instance
+    }
+
+}
+
+/**
+ * Manages, draws, and updates all entities for each room
+ * @hidden
+ * */
 class EntityHandler {
     entities: Array<Entity>
     constructor() {
@@ -71,113 +378,103 @@ class EntityHandler {
     }
 }
 
+
+// Supported image sources for a Sprite
 type SupportedImageSource = Exclude<Exclude<CanvasImageSource, VideoFrame>, SVGImageElement>
 
+// Container around an image source useful for drawing to canvas
 class Sprite {
     private img: SupportedImageSource
-    center:[number, number]
-    tint:string
-    width:number
-    height:number
-    scale:number
+    private imgNoTint: SupportedImageSource
+    private _center:[number, number]
+    private _width:number
+    private _height:number
+    private _scale:number
     angle:number
-    constructor(img:SupportedImageSource|HTMLElement) {
-        this.setSprite(<SupportedImageSource>img)
-        this.center = [0, 0]
-        this.tint = "white"
+    constructor(img:SupportedImageSource|HTMLElement=null) {
+        this._center = [0, 0]
         this.angle = 0
-        this.width = 0
-        this.height = 0
-        this.scale = 1
+        this._scale = 1
+        this._width = 0
+        this._height = 0
+        if (img) this.sprite(<SupportedImageSource>img)
+    }
+
+
+    tint(color):Sprite {
+        // take imgNoTint, apply tint to it and set to img
+        var canvas = new OffscreenCanvas(this._width, this._height)
+        var context = canvas.getContext('2d')
+
+        context.drawImage(this.imgNoTint, 0, 0, this._width, this._height)
+
+        context.globalAlpha = 0.4
+
+        context.fillStyle = color
+
+        context.globalCompositeOperation = "multiply"
+
+        context.fillRect(0, 0, this._width, this._height)
+
+        context.globalCompositeOperation = "destination-in"
+
+        context.globalAlpha = 1
+
+        context.drawImage(this.imgNoTint, 0, 0, this._width, this._height)
+
+        this.img = canvas.transferToImageBitmap()
+        
+        return this
+    }
+
+    get width() {
+        return this._width
+    }
+
+    get height() {
+        return this._height
     }
 
     draw(context:CanvasRenderingContext2D, x:number, y:number) {
-
         // translate to sprite center
-        context.translate( x - this.center[0], y - this.center[1])
+        context.translate( x, y)
 
         // rotate
-        if (this.angle != 0.0) {
-            context.rotate(this.angle)
-        }
+        context.rotate(this.angle)
 
-        // draw image
-        context.drawImage(this.img, 0, 0)
+
+        // draw offscreen canvas to this canvas
+        context.drawImage(this.img, -this._center[0]*this._scale, -this._center[1]*this._scale, this.width, this.height)
 
         // rotate back
-        if (this.angle != 0.0) {
-            context.rotate(-this.angle)
-        }
+        context.rotate(-this.angle)
+
         // translate back
-        context.translate(-(x - this.center[0]), -(y - this.center[1]))
+        context.translate(-(x), -(y))
     }
 
-    setScale(scale:number):Sprite {
-        this.scale = scale
+    scale(scale:number):Sprite {
+        this._scale = scale
+        this._width = this.img.width * this._scale
+        this._height = this.img.height * this._scale
         return this
     }
 
-    setTint(tint:string):Sprite {
-        this.tint = tint
+    center(center:[number, number]):Sprite {
+        this._center = center
         return this
     }
 
-    setCenter(center:[number, number]):Sprite {
-        this.center = center
-        return this
-    }
-
-    setSprite(img:SupportedImageSource):Sprite {
+    sprite(img:SupportedImageSource):Sprite {
+        this.imgNoTint = img
+        this._width = this.imgNoTint.width
+        this._height = this.imgNoTint.height
         this.img = img
-        this.width = this.img.width
-        this.height = this.img.height
         return this
     }
 }
 
-class Draggable {
-    inputHandler: InputHandler
-    x: number
-    y: number
-    w: number
-    h: number
-    dragging: boolean
-    _sx: number
-    _sy: number
-    constructor (room, x, y, w, h) {
-        this.inputHandler = room.inputHandler
-        this.x = x
-        this.y = y
-        this.w = w
-        this.h = h
-        this.dragging = false
-        this._sx = this.inputHandler.mx
-        this._sy = this.inputHandler.my
-        window.addEventListener("mousedown", e=>{
-            if (this.inputHandler.mx > this.x && this.inputHandler.mx < this.x + this.w && this.inputHandler.my > this.y && this.inputHandler.my < this.y + this.h) {// 
-                // trigger draggable
-                this.dragging = true
-                this._sx = this.inputHandler.mx
-                this._sy = this.inputHandler.my
-            }
-
-        })
-
-        window.addEventListener("mouseup", e=>{
-            this.dragging = false
-        })
-    }
-
-    update (delta) {
-        if (this.dragging) {
-            this.x += this.inputHandler.mx-this._sx
-            this.y += this.inputHandler.my-this._sy
-            this._sx = this.inputHandler.mx
-            this._sy = this.inputHandler.my
-        }
-    }
-}
-
+// Abstract entity class with builtin properties and methods
 abstract class Entity {
     layer: number
     markedForDeletion: boolean
@@ -185,7 +482,7 @@ abstract class Entity {
     x:number
     y:number
     sprite:Sprite
-    protected id: number
+    private id: number
     constructor(room:Room, layer=0) {
         // public
         this.markedForDeletion = false
@@ -199,6 +496,13 @@ abstract class Entity {
         room.addEntity(this)
     }
 
+    drag () {
+        var deltas:[number, number] = InputSingleton.getInstance().delta
+        // console.log(deltas)
+        this.x += deltas[0]
+        this.y += deltas[1]
+    }
+
     setSprite(sprite:Sprite):Entity {
         this.sprite = sprite
         return this
@@ -208,24 +512,19 @@ abstract class Entity {
         this.markedForDeletion = true
     }
 
-    drawSprite(sprite:HTMLCanvasElement, x:number, y:number, angle:number):void {
-        this.room.controller.context.drawImage(sprite, x, y)
-    }
-
     abstract draw(context):void
 
     abstract update(delta):void
 }
 
+// Root object of all other objects, responsible for keeping track of rooms
 class Controller {
     canvas: HTMLCanvasElement
     context: CanvasRenderingContext2D
-    resolution: number
     room: Room
-    constructor(canvas, context, resolution) {
+    constructor(canvas, context) {
         this.canvas = canvas
         this.context = context
-        this.resolution = resolution
         this.room = null
     }
 
@@ -233,6 +532,7 @@ class Controller {
         var pass:Passer
         this.room?.onExit((info:Passer)=>pass=info)
         pass = {from:this.room?.name, info:pass}
+        this.room?._unmount()
         this.room = new room(this)
         this.room.onEnter(pass)
     }
@@ -246,14 +546,15 @@ class Controller {
     }
 }
 
-class Room {
+// A container holding entities and GUI elements
+abstract class Room {
     name: string
     controller:Controller
     width: number
     height: number
     id:number
     entityHandler:EntityHandler
-    inputHandler: InputHandler
+    guiHandler:GUIHandler
     constructor(controller, name) {
         this.controller = controller
         this.width = this.controller.canvas.width
@@ -261,7 +562,7 @@ class Room {
         this.name = name
         this.id = Math.round(Math.random() * 8888888888 + 1111111111)
         this.entityHandler = new EntityHandler()
-        this.inputHandler = new InputHandler(controller.canvas, controller.resolution)
+        this.guiHandler = new GUIHandler()
     }
 
     addEntity(entity) {
@@ -276,12 +577,13 @@ class Room {
         this.entityHandler.draw(context)
     }
 
-    onEnter(passed:Passer) {
-
+    /**@internal */
+    _unmount() {
+        this.guiHandler.unmount()
     }
 
-    onExit(pass:Pass) {
+    abstract onEnter(passed:Passer):void
 
-    }
+    abstract onExit(pass:Pass):void
 }
 

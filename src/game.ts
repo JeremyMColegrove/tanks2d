@@ -1,190 +1,3 @@
-class UIHandle extends Draggable {
-    startx: number
-    visibleHeight: number
-    visibleWidth: number
-    constructor(room:Room, x:number, y:number, w:number, h:number) {
-        super(room, x, y, w+15, h+15)
-        this.startx = x //override y movement by saving start y
-        this.visibleHeight = h
-        this.visibleWidth = w
-    }
-
-    update(delta): void {
-        super.update(delta)
-    }
-
-    draw(context): void {
-        context.fillRect(this.x, this.y, this.visibleWidth, this.visibleHeight)
-    }
-}
-
-class UIWind {
-    room: GameRoom
-    cloudright: HTMLElement
-    cloudleft: HTMLElement
-    speed: number
-    x: number
-    y: number
-    constructor(room, x, y) {
-        this.room = room
-        this.cloudright = document.getElementById("cloudr")
-        this.cloudleft = document.getElementById("cloudl")
-        this.speed = this.room.wind
-        this.x = x
-        this.y = y
-    }
-
-    update() {
-        if (this.speed != this.room.wind) this.speed = this.room.wind
-    }
-
-    draw(context) {
-        var cloudtodraw
-        if (this.room.wind > 0)
-            cloudtodraw = this.cloudright
-        else
-            cloudtodraw = this.cloudleft
-
-        context.drawImage(cloudtodraw, this.x, this.y)
-        // @ts-ignore 
-        context.fillText(Math.abs(this.room.wind), this.x + this.cloudright.width, this.y + this.cloudright.height)
-    }
-}
-
-class UIAngle {
-    room:GameRoom
-    gradient:HTMLElement
-    x:number
-    y:number
-    w:number
-    h:number
-    handle:UIHandle
-    constructor(room, x, y, scale) {
-        this.room = room
-        this.gradient = document.getElementById("gradient-horizontal")
-        this.x = x
-        this.y = y
-        this.w = 128 * scale
-        this.h = 16 * scale
-        this.handle = new UIHandle(this.room, this.x, this.y, 5, this.h)
-    }
-
-    update (delta) {
-        this.handle.update(delta)
-
-        // restrict handle
-        if (this.handle.x > this.x + this.w) this.handle.x = this.x + this.w
-        if (this.handle.x < this.x) this.handle.x = this.x
-        this.handle.y = this.y // lock x
-
-        // calculate power based on handle position
-        if (this.handle.dragging) {
-            const perc = 1 - (this.handle.x - this.x) / this.w
-            this.room.player.angle = Math.round(perc * 180)
-        } else {
-            this.handle.x = (1-(this.room.player.angle/180)) * this.w + this.x
-        }
-    }
-
-    draw(context) {
-        context.drawImage(this.gradient, this.x, this.y, this.w, this.h)
-        context.fillText(this.room.player.angle, this.x+this.w, this.y + this.h)
-        this.handle.draw(context)
-    }
-}
-
-class UIPower {
-    room:GameRoom
-    gradient:HTMLElement
-    x:number
-    y:number
-    w:number
-    h:number
-    handle:UIHandle
-constructor (room, x, y, scale) {
-    this.room = room
-    this.gradient = document.getElementById("gradient-vertical")
-    this.x = x
-    this.y = y
-    this.w = 50 * scale
-    this.h = 125 * scale
-    this.handle = new UIHandle(room, this.x, this.y, this.w, 5)
-}
-
-update (delta) {
-    this.handle.update(delta)
-    this.handle.x = this.x // lock x
-
-    // restrict handle
-    if (this.handle.y < this.y) this.handle.y = this.y
-    if (this.handle.y > this.y + this.h) this.handle.y = this.y + this.h
-
-    // calculate power based on handle position
-    if (this.handle.dragging) {
-        const perc = 1 - (this.handle.y - this.y) / this.h
-        this.room.player.power = Math.round(perc * 100)
-    } else {
-        this.handle.y = (1-(this.room.player.power/100)) * this.h + this.y
-    }
-}
-
-draw(context) {
-    context.drawImage(this.gradient, this.x, this.y, this.w, this.h)
-    context.fillText(this.room.player?.power, this.x+this.w, this.y + this.h)
-    this.handle.draw(context)
-}
-}
-
-// handle all UI for our classes
-class UI {
-    room:GameRoom
-    UIPower:UIPower
-    UIAngle:UIAngle
-    UIWind:UIWind
-constructor(room) {
-    this.room = room
-    this.UIPower = new UIPower(room, this.room.width/3, 10, 0.9)
-    this.UIAngle = new UIAngle(room, this.room.width/2, 10, 1.3)
-    this.UIWind = new UIWind(room, this.room.width/2 + 100, 60)
-}
-
-update(delta) {
-    this.UIPower.update(delta)
-    this.UIAngle.update(delta)
-}
-
-draw (context) {
-
-    if (this.room.state == GAME_STATES.READY) {
-        context.globalAlpha = 1
-    } else {
-        context.globalAlpha = 0.5
-    }
-    context.save()
-
-    // draw white header bar
-    context.globalAlpha = 0.8
-    context.fillStyle = "white"
-    context.fillRect(0, 0, this.room.width, this.room.height * 0.15)
-    context.restore()
-
-
-
-    context.fillStyle = "#292929"
-    context.font = "30px Helvetica"
-    // draw text here
-    context.fillText(this.room.player.name, 20, 30)
-
-    // draw other objects here
-    this.UIPower.draw(context)
-    this.UIAngle.draw(context)
-    this.UIWind.draw(context)
-    context.restore()
-    context.globalAlpha = 1
-
-}
-}
-
 class Bullet extends Entity {
     room:GameRoom
     power:number
@@ -200,9 +13,8 @@ class Bullet extends Entity {
 
         this.power = power
         this.angle = angle
-
-        this.vx = this.power*Math.cos(this.angle * Math.PI/180)
-        this.vy = -this.power*Math.sin(this.angle * Math.PI/180)
+        this.vx = this.power*Math.cos(this.angle)
+        this.vy = this.power*Math.sin(this.angle)
         this.speed = 0.05
     }
 
@@ -210,7 +22,7 @@ class Bullet extends Entity {
 
     }
 
-    update () {
+    update (delta:number) {
 
         // the missle moving physics here
         this.x += this.vx*this.speed
@@ -231,8 +43,8 @@ class SmallMissle extends Bullet {
         this.radius = 20
     }
 
-    update () {
-        super.update()
+    update (delta:number) {
+        super.update(delta)
         // check for collision with ground
         if (this.y > this.room.height - this.room.ground.harry[Math.round(this.x)]) {
             this.room.ground.blow(this.x, this.y, this.radius)
@@ -261,20 +73,20 @@ class VolcanoBomb extends Bullet {
         this.fragmentminpower = 30
     }
 
-    update () {
+    update (delta:number) {
         // check for collision with ground
         if (this.y > this.room.height - this.room.ground.harry[Math.round(this.x)]) {
             this.room.ground.blow(this.x, this.y, this.radius)
             // create 4 more bullets going in random directions
-            new SmallMissle(this.room, this.x-1, this.y-11, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45)
-            new SmallMissle(this.room, this.x+2, this.y-9, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45)
-            new SmallMissle(this.room, this.x-3, this.y-12, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45)
-            new SmallMissle(this.room, this.x, this.y-4, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, Math.random()*90 + 45)
+            new SmallMissle(this.room, this.x-1, this.y-11, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, -(Math.random()*Math.PI/2 + Math.PI/4))
+            new SmallMissle(this.room, this.x+2, this.y-9, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, -(Math.random()*Math.PI/2 + Math.PI/4))
+            new SmallMissle(this.room, this.x-3, this.y-12, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, -(Math.random()*Math.PI/2 + Math.PI/4))
+            new SmallMissle(this.room, this.x, this.y-4, (this.fragmentpower-this.fragmentminpower)*Math.random()+this.fragmentminpower, -(Math.random()*Math.PI/2 + Math.PI/4))
 
             this.destroy()
         }
 
-        super.update()
+        super.update(delta)
     }
 
     draw(context) {
@@ -291,25 +103,21 @@ class Tank extends Entity {
     oldy:number
     color:string
     sprite:Sprite
-    muzzle:HTMLElement
+    muzzle:Sprite
     owningPlayer:Player
-    // tankangle:number
     ground:Ground
     constructor(room:Room, color:string, owningPlayer:Player, ground:Ground) {
         super(room, 0)
         this.color = color
         
         this.sprite = new Sprite(document.getElementById("tank"))
-        this.sprite.setCenter([8, 16])
+        this.muzzle = new Sprite(document.getElementById("muzzle"))
 
-        this.muzzle = document.getElementById("muzzle")
+        this.sprite.center([0, this.sprite.height/2]).tint(color)
+        this.muzzle.center([0, this.muzzle.height/2])
+
         this.ground = ground
-        // @ts-ignore 
-        this.width = this.sprite.width
-        // @ts-ignore 
-        this.height = this.sprite.height
         this.owningPlayer = owningPlayer
-        // this.tankangle = 0
 
         // set x and y coords of tank
         this.x = ~~(Math.random()*(room.width-400)+200)
@@ -320,6 +128,11 @@ class Tank extends Entity {
         this.oldy = 0
     }
 
+    shoot() {
+        var startOfMuzzle = Utility.rotatePoint(this.x, this.y, this.sprite.width-3, this.sprite.angle)
+        var endOfMuzzle = Utility.rotatePoint(startOfMuzzle[0], startOfMuzzle[1], this.muzzle.width, this.muzzle.angle )
+        new this.owningPlayer.bullet(this.room, endOfMuzzle[0], endOfMuzzle[1], this.owningPlayer.power/100 * this.owningPlayer.maxpower, this.muzzle.angle)
+    }
 
     update(delta:number): void {
         // function to keep tank on ground
@@ -335,30 +148,18 @@ class Tank extends Entity {
             var p1 = this.ground.harry[~~this.x - dist]
             var p2 = this.ground.harry[~~this.x]
             var p3 = this.ground.harry[~~this.x + dist]
-            this.sprite.angle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2)
+            this.sprite.angle = -((Math.atan((p3-p2)/dist) + Math.atan((p2-p1)/dist)) / 2) - Math.PI/2
         }
+
         this.oldx = this.x
         this.oldy = this.y
+        this.muzzle.angle = -this.owningPlayer.angle + this.sprite.angle + Math.PI/2
     }
 
     draw (context:CanvasRenderingContext2D): void {
-        // draw body (at angle)
-        // context.save()
-        // context.translate(this.x , this.y)
-        // context.rotate(this.tankangle * Math.PI/180)
-        // @ts-ignore
         this.sprite.draw(context, this.x, this.y)
-        // context.drawImage(this.sprite, -this.width/2, -this.height, this.width, this.height)
-        // context.restore()
-
-        // draw muzzle 
-        // context.save()
-        // // @ts-ignore 
-        // context.translate(this.x + this.muzzle.width/2 + this.sprite.width/2*Math.cos((this.tankangle-90) * Math.PI/180), this.y - this.muzzle.width/2 + 5 - this.sprite.height + this.sprite.height*Math.sin((Math.abs(this.tankangle)) * Math.PI/180))
-        // context.rotate(-(this.owningPlayer.angle + 90) * Math.PI/180)
-        // // @ts-ignore 
-        // context.drawImage(this.muzzle, -this.muzzle.width/2, 0, this.muzzle.width, this.muzzle.height)
-        // context.restore()
+        var rotatedPoint = Utility.rotatePoint(this.x, this.y, this.sprite.width - 3, this.sprite.angle)
+        this.muzzle.draw(context, rotatedPoint[0], rotatedPoint[1])
     }
 }
 
@@ -392,11 +193,14 @@ class Player {
         this.teleports = 2
         this.power = 80
         this.maxpower = 100 // actual multiplier being passed into bullet, sensitive
-        this.angle = 90
+        this.angle = Math.PI/2 // from 0-PI/2
         this.ammo = {SmallMissle:8}
         this.bullet = VolcanoBomb
     }
 }
+
+
+const PLAYERCHANGE = new Event("player-change")
 
 enum GAME_STATES {
     READY,
@@ -404,8 +208,6 @@ enum GAME_STATES {
     PAUSED,
     GAMEOVER
 }
-
-
 
 class GameRoom extends Room {
     canvas: HTMLCanvasElement
@@ -415,20 +217,17 @@ class GameRoom extends Room {
     players: Array<Player>
     player: Player
     wind: number
-    UI: UI
     state: GAME_STATES
     constructor(controller) {
         super(controller, "Game Room")
         this.canvas = this.controller.canvas
         this.context = this.controller.context
-        this.resolution = this.controller.resolution
         this.width = this.canvas.width
         this.height = this.canvas.height
         this.ground = new Ground(this, this.context, [245, 245, 255])
         this.players = []
         this.player = null
         this.wind = this.randomWind()
-        this.UI = new UI(this)
         this.state = GAME_STATES.READY
     }
 
@@ -438,6 +237,58 @@ class GameRoom extends Room {
 
         // set players turn to first player in list
         this.player = this.players[0]
+
+        this.player.angle = Math.PI/4
+
+        
+        // create GUI Elements after players have been created
+
+        var angleText = new DivElement(this, this.width/3 + 170, 50, {fontSize:"25px"}, (element)=>{
+            element.innerText = `${~~(this.player.angle * 180/Math.PI)}`
+        })
+
+        var angleElement = new SliderElement(this, this.width/3 + 150, 20, 1-(this.player.angle / Math.PI), {width:"150px", height:"10px"}, (event)=>{
+            // when the slider is moved
+            this.player.angle = (1-event.target.value) * Math.PI
+            angleText.sync()
+        }, (element)=> {
+            element['value'] = 1 - (this.player.angle / Math.PI)
+        })
+
+        var powerText = new DivElement(this, this.width/3 + 30, 100, {fontSize:"25px"}, (element)=>{
+            element.innerText = `${~~this.player.power}`
+        })
+
+        var powerElement = new SliderElement(this, this.width/3, 60, 0.5, {width:"100px", height:"10px", transform:"rotate(270deg)"}, (event)=>{
+            // when the slider is moved
+            this.player.power = (event.target.value) * 100
+            powerText.sync()
+        }, (element)=>{
+            element['value'] = this.player.power / 100
+        })
+
+        var nameText = new DivElement(this, 0, 0, {fontSize:"25px",border:"solid",borderColor:"rgba(179, 179, 179, 0.329)", borderWidth:"2px", paddingBlock:"10px", paddingInline:"40px"}, (element)=>{
+            element.innerText = this.player.name
+            nameText.x = element.clientWidth / 2
+            nameText.y = element.clientHeight / 2
+        })
+
+
+        // event that gets triggered whenever a player should change
+        window.addEventListener("player-change", ()=> {
+            // next player
+            this.player = this.players[(this.players.indexOf(this.player) + 1) % this.players.length]
+            this.wind = this.randomWind()
+            this.state = GAME_STATES.READY
+
+            // reset UI elements
+            this.guiHandler.syncAll()
+        })
+        this.guiHandler.syncAll()
+    }
+
+    onExit(pass: Pass): void {
+        
     }
 
     addPlayer({name, color}) {
@@ -450,34 +301,25 @@ class GameRoom extends Room {
 
     update (delta) {
         super.update(delta)
-        this.UI.update(delta)
-
+        
         // key checks
-        if (this.inputHandler.keys.has(' ') && this.state == GAME_STATES.READY) {
+        if (InputSingleton.getInstance().keys.has(' ') && this.state == GAME_STATES.READY) {
             // create new enemy bullet in room
-            new this.player.bullet(this, this.player.tank.x, this.player.tank.y, this.player.power/100 * this.player.maxpower, this.player.angle)
+            this.player.tank.shoot()
             this.state = GAME_STATES.FIRED
         }
         
         if (this.state == GAME_STATES.FIRED && !this.entityHandler.entityExists(Bullet)) {
-
-            // next player
-            var indexcurrentplayer = this.players.indexOf(this.player)
-            if (indexcurrentplayer == this.players.length - 1) {
-                this.player = this.players[0]
-            } else {
-                this.player = this.players[indexcurrentplayer + 1]
-            }
-
-            this.wind = this.randomWind()
-            this.state = GAME_STATES.READY
+            window.dispatchEvent(PLAYERCHANGE)
         }
     }
 
-    draw(context) {
+    draw(context:CanvasRenderingContext2D) {
         super.draw(context)
-        this.UI.draw(context)
-
+        context.globalAlpha = 0.5
+        context.fillStyle = "white"
+        context.fillRect(0, 0, this.width, 120)
+        context.globalAlpha = 1
     }
 }
 

@@ -2,10 +2,13 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    font-family: 'Noto Sans Mahajani', sans-serif;
 }
 
+
+/* #yWpQdkvPrv::-webkit-slider-thumb {-webkit-appearance: none;} */
 #canvas, #ground {
-    border: 5px solid black;
+    /* border: 5px solid black; */
     position: absolute;
     top:50%;
     left:50%;
@@ -18,4 +21,28 @@
 
 .hidden {
     display:none;
+}
+
+._buttonelement:hover {
+    cursor: pointer;
+}
+
+._sliderelement {
+    appearance: none;
+    width:100%;
+    height:8px;
+    border-radius: 12px;
+    background-color: white;
+}
+._sliderelement::-webkit-slider-thumb {
+    appearance: none;
+    width:20px;
+    height:20px;
+    border-radius: 50%;
+    background-color: rgb(114, 173, 255);
+}
+
+/* remove black border */
+._sliderelement:focus {
+    outline: none;
 }

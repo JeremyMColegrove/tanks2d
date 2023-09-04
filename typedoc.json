@@ -1,0 +1,6 @@
+{
+    // Comments are supported, like tsconfig.json
+    "entryPoints": ["src/core.ts"],
+    "out": "docs",
+    "excludeInternal": true
+}
