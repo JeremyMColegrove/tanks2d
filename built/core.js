@@ -6,6 +6,9 @@ class Utility {
         var yy = y + distance * Math.sin(angle);
         return [xx, yy];
     }
+    static distance(point1, point2) {
+        return Math.sqrt(Math.pow(point1[0] - point2[0], 2) + Math.pow(point1[1] - point2[1], 2));
+    }
     static randomString(length) {
         let result = '';
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -347,10 +350,10 @@ class EntityHandler {
 class Sprite {
     constructor(img = null) {
         this._center = [0, 0];
-        this.angle = 0;
-        this._scale = 1;
         this._width = 0;
         this._height = 0;
+        this._scale = 1;
+        this.angle = 0;
         if (img)
             this.sprite(img);
     }
@@ -379,18 +382,21 @@ class Sprite {
         // translate to sprite center
         context.translate(x, y);
         // rotate
-        context.rotate(this.angle);
+        if (this.angle != 0)
+            context.rotate(this.angle);
         // draw offscreen canvas to this canvas
-        context.drawImage(this.img, -this._center[0] * this._scale, -this._center[1] * this._scale, this.width, this.height);
+        context.drawImage(this.img, -this._center[0], -this._center[1], this.width, this.height);
         // rotate back
-        context.rotate(-this.angle);
+        if (this.angle != 0)
+            context.rotate(-this.angle);
         // translate back
         context.translate(-(x), -(y));
     }
     scale(scale) {
+        this._width = this.img.width * scale;
+        this._height = this.img.height * scale;
+        this._center = [this._center[0] * (scale / this._scale), this._center[1] * (scale / this._scale)];
         this._scale = scale;
-        this._width = this.img.width * this._scale;
-        this._height = this.img.height * this._scale;
         return this;
     }
     center(center) {
@@ -414,7 +420,6 @@ class Entity {
         this.room = room;
         this.x = 0;
         this.y = 0;
-        this.sprite = null;
         // private
         this.id = Math.round(Math.random() * 8888888888 + 1111111111);
         room.addEntity(this);
@@ -443,13 +448,11 @@ class Controller {
         this.room = null;
     }
     goToRoom(room) {
-        var _a, _b, _c;
-        var pass;
-        (_a = this.room) === null || _a === void 0 ? void 0 : _a.onExit((info) => pass = info);
-        pass = { from: (_b = this.room) === null || _b === void 0 ? void 0 : _b.name, info: pass };
-        (_c = this.room) === null || _c === void 0 ? void 0 : _c._unmount();
+        var _a, _b;
+        var infoToNextRoom = (_a = this.room) === null || _a === void 0 ? void 0 : _a.onExit();
+        (_b = this.room) === null || _b === void 0 ? void 0 : _b._unmount();
         this.room = new room(this);
-        this.room.onEnter(pass, this.backgroundContext);
+        this.room.onEnter(infoToNextRoom, this.backgroundContext);
     }
     update(delta) {
         var _a;

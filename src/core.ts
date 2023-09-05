@@ -4,15 +4,6 @@
 type Newable<T> = { new (...args: any[]): T; };
 type Constructor<T> = Function & { prototype: T }
 
-// object type of information passed to current room by previous room
-type Passer = {
-    from:string,
-    info: Object
-}
-
-// Custom function that is given to a rooms onExit() to pass information to the next room
-type Pass = (info: Object) => void
-
 // class for defining helpful static functions
 class Utility {
     public static rotatePoint(x:number, y:number, distance:number, angle:number): [number, number] {
@@ -22,7 +13,9 @@ class Utility {
         var yy = y + distance*Math.sin(angle)
         return [xx, yy]
     }
-
+    public static distance(point1:[number, number], point2:[number, number]) {
+        return Math.sqrt(  Math.pow(point1[0]-point2[0], 2) + Math.pow(point1[1]-point2[1], 2))
+    }
     public static randomString(length) {
         let result = '';
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -451,17 +444,12 @@ type SupportedImageSource = Exclude<Exclude<CanvasImageSource, VideoFrame>, SVGI
 class Sprite {
     private img: SupportedImageSource
     private imgNoTint: SupportedImageSource
-    private _center:[number, number]
-    private _width:number
-    private _height:number
-    private _scale:number
-    angle:number
+    private _center:[number, number] = [0, 0]
+    private _width:number = 0
+    private _height:number = 0
+    private _scale:number = 1
+    angle:number = 0
     constructor(img:SupportedImageSource|HTMLElement=null) {
-        this._center = [0, 0]
-        this.angle = 0
-        this._scale = 1
-        this._width = 0
-        this._height = 0
         if (img) this.sprite(<SupportedImageSource>img)
     }
 
@@ -505,23 +493,25 @@ class Sprite {
         context.translate( x, y)
 
         // rotate
-        context.rotate(this.angle)
+        if (this.angle != 0) context.rotate(this.angle)
 
 
         // draw offscreen canvas to this canvas
-        context.drawImage(this.img, -this._center[0]*this._scale, -this._center[1]*this._scale, this.width, this.height)
+        context.drawImage(this.img, -this._center[0], -this._center[1], this.width, this.height)
 
         // rotate back
-        context.rotate(-this.angle)
+        if (this.angle != 0) context.rotate(-this.angle)
 
         // translate back
         context.translate(-(x), -(y))
     }
 
     scale(scale:number):Sprite {
+        
+        this._width = this.img.width * scale
+        this._height = this.img.height * scale
+        this._center = [this._center[0]*(scale/this._scale), this._center[1]*(scale/this._scale)]
         this._scale = scale
-        this._width = this.img.width * this._scale
-        this._height = this.img.height * this._scale
         return this
     }
 
@@ -555,7 +545,6 @@ abstract class Entity {
         this.room = room
         this.x = 0
         this.y = 0
-        this.sprite = null
         // private
         this.id = Math.round(Math.random()*8888888888+1111111111)
         room.addEntity(this)
@@ -598,12 +587,10 @@ class Controller {
     }
 
     goToRoom(room:Newable<Room>) {
-        var pass:Passer
-        this.room?.onExit((info:Passer)=>pass=info)
-        pass = {from:this.room?.name, info:pass}
+        var infoToNextRoom:any = this.room?.onExit()
         this.room?._unmount()
         this.room = new room(this)
-        this.room.onEnter(pass, this.backgroundContext)
+        this.room.onEnter(infoToNextRoom, this.backgroundContext)
     }
 
     update(delta):void {
@@ -655,8 +642,8 @@ abstract class Room {
         this.guiHandler.unmount()
     }
 
-    abstract onEnter(passed:Passer, backgroundContext:CanvasRenderingContext2D):void
+    abstract onEnter(info:any, backgroundContext:CanvasRenderingContext2D):void
 
-    abstract onExit(pass:Pass):void
+    abstract onExit():void
 }
 
