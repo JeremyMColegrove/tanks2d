@@ -253,7 +253,7 @@ class RadioElement extends UIElement {
             label.style.display = "flex"
             label.style.alignItems = "center"
 
-            label.insertBefore(radio.element, label.firstChild)
+            label.prepend(radio.element)
             this.element.appendChild(label)
         })
         if (this._radios.length > 0) this._radios[~~(Math.random()*this._radios.length-1)].element.checked = true
