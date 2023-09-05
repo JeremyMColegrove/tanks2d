@@ -2,6 +2,7 @@
  * @internal
  * new T() */
 type Newable<T> = { new (...args: any[]): T; };
+type Constructor<T> = Function & { prototype: T }
 
 // object type of information passed to current room by previous room
 type Passer = {
@@ -416,7 +417,7 @@ class EntityHandler {
         this.entities.push(entity)
     }
 
-    entityExists(eClass:Newable<Entity>): boolean {
+    entityExists(eClass:Constructor<Entity>): boolean {
         for (var i=0;  i<this.entities.length; i++) {
             if (this.entities[i] instanceof eClass) return true
         }

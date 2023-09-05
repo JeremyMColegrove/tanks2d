@@ -195,7 +195,7 @@ class RadioElement extends UIElement {
             label.innerText = radio.label;
             label.style.display = "flex";
             label.style.alignItems = "center";
-            label.insertBefore(radio.element, label.firstChild);
+            label.prepend(radio.element);
             this.element.appendChild(label);
         });
         if (this._radios.length > 0)
